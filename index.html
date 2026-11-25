@@ -24,87 +24,81 @@
       border-radius: 50%; animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    h1 { font-size: 19px; margin: 0 0 8px; color: #38bdf8; }
-    p { font-size: 13px; color: #cbd5e1; line-height: 1.55; margin: 0 0 18px; }
-    .tip {
-      background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4);
-      color: #fde68a; border-radius: 14px; padding: 12px; font-size: 12px;
-      text-align: left; line-height: 1.55; margin-bottom: 18px;
-    }
-    .btn {
-      width: 100%; padding: 14px; border: none; border-radius: 14px; cursor: pointer;
-      background: linear-gradient(135deg, #10b981, #0ea5e9); color: #020617;
-      font-size: 15px; font-weight: 800; box-shadow: 0 8px 20px rgba(14, 165, 233, 0.35);
-    }
+    h1 { font-size: 18px; margin: 0 0 8px; color: #38bdf8; }
+    p { font-size: 13px; color: #cbd5e1; line-height: 1.5; margin: 0 0 16px; }
     .skip {
-      display: inline-block; margin-top: 14px; color: #94a3b8;
+      display: inline-block; margin-top: 8px; color: #94a3b8;
       font-size: 12px; text-decoration: underline; cursor: pointer; background: none; border: none;
     }
   </style>
 </head>
 <body>
-  <div class="card" id="setupCard" style="display:none;">
-    <h1>🛰️ ทางเข้า Smart Stock (GPS)</h1>
-    <p>ระบบพร้อมจับพิกัดดาวเทียมตรงจุดที่คุณอยู่แบบอัตโนมัติทั้งในไทยและต่างประเทศ</p>
-    <div class="tip">
-      <b>แนะนำ (ทำแค่ครั้งแรก):</b><br>
-      1. แตะปุ่ม <b>⋮</b> มุมขวาบนของ Chrome ➔ เลือก <b>เพิ่มลงในหน้าจอหลัก</b><br>
-      2. เสร็จแล้วกดปุ่มด้านล่าง แล้วกด <b>อนุญาต (Allow)</b> ตำแหน่งที่ตั้ง
-    </div>
-    <button class="btn" onclick="startGpsAndLaunch()">เริ่มจับพิกัด GPS และเข้าแอป</button>
-  </div>
-
-
-  <div class="card" id="loadingCard" style="display:none;">
+  <div class="card">
     <div class="spinner"></div>
-    <h1 id="statusTitle">กำลังจับพิกัด GPS ดาวเทียม...</h1>
+    <h1 id="statusTitle">กำลังตรวจสอบอุปกรณ์...</h1>
     <p id="statusSub">กรุณารอสักครู่ ระบบกำลังพาเข้าสู่ Smart Stock</p>
-    <button class="skip" onclick="redirectToApp(null, null)">เข้าแอปทันทีโดยไม่รอ GPS</button>
+    <button class="skip" id="skipBtn" style="display:none;" onclick="redirectToApp(null, null)">เข้าแอปทันทีโดยไม่รอ GPS</button>
   </div>
-
 
   <script>
-    // ลิงก์ Web App Google Apps Script จริงของคุณ
     var TARGET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzYpv2kP7xp8OmLZReL1SAIsySweORn023s55e1Mi35MS_MF5h8pma3k0CCzCuQOB44Og/exec";
     var redirected = false;
 
+    // ตรวจจับมือถือ + แท็บเล็ต + iPadOS + มือถือจอพับ (Flip/Fold)
+    function isMobileOrTabletDevice() {
+      var ua = navigator.userAgent || "";
+      var isTouchMac = (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      var isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|Silk|Kindle/i.test(ua);
+      return isMobileUA || isTouchMac;
+    }
+
+    var detectedMode = isMobileOrTabletDevice() ? "mobile" : "desktop";
 
     function redirectToApp(lat, lon) {
       if (redirected) return;
       redirected = true;
+
       var params = new URLSearchParams(window.location.search);
       params.delete("go");
-      if (!params.has("mode")) params.set("mode", "mobile");
+      params.delete("openExternalBrowser");
 
-
-      var cleanLauncher = window.location.origin + window.location.pathname;
-      params.set("launcher", cleanLauncher);
-
-
-      if (lat !== null && lon !== null) {
-        params.set("lat", Number(lat).toFixed(6));
-        params.set("lon", Number(lon).toFixed(6));
+      // บังคับโหมดตามอุปกรณ์จริง (ยกเว้นลิงก์ต้นทางระบุ mode มาเจาะจงอยู่แล้ว)
+      if (!params.has("mode")) {
+        params.set("mode", detectedMode);
       }
+
+      if (detectedMode === "mobile") {
+        var cleanLauncher = window.location.origin + window.location.pathname;
+        params.set("launcher", cleanLauncher);
+        if (lat !== null && lon !== null) {
+          params.set("lat", Number(lat).toFixed(6));
+          params.set("lon", Number(lon).toFixed(6));
+        }
+      }
+
       window.location.replace(TARGET_WEB_APP_URL + "?" + params.toString());
     }
 
+    (function init() {
+      // ถ้าเป็นคอมพิวเตอร์ -> เด้งเข้าหน้า Desktop ทันที ไม่ต้องรอ GPS
+      if (detectedMode === "desktop") {
+        document.getElementById("statusTitle").textContent = "กำลังเปิดโหมดคอมพิวเตอร์...";
+        redirectToApp(null, null);
+        return;
+      }
 
-    function startGpsAndLaunch() {
-      try { localStorage.setItem("smart_stock_gps_ready", "1"); } catch (e) {}
-      document.getElementById("setupCard").style.display = "none";
-      document.getElementById("loadingCard").style.display = "block";
-
+      // ถ้าเป็นมือถือ/แท็บเล็ต -> จับ GPS ดาวเทียมแล้วเด้งเข้าหน้า Mobile
+      document.getElementById("statusTitle").textContent = "กำลังจับพิกัด GPS ดาวเทียม...";
+      document.getElementById("skipBtn").style.display = "inline-block";
 
       if (!navigator.geolocation) {
         redirectToApp(null, null);
         return;
       }
 
-
       var guard = setTimeout(function() {
         redirectToApp(null, null);
-      }, 6500);
-
+      }, 6000);
 
       navigator.geolocation.getCurrentPosition(
         function(pos) {
@@ -116,25 +110,10 @@
           clearTimeout(guard);
           redirectToApp(null, null);
         },
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 5500, maximumAge: 0 }
       );
-    }
-
-
-    (function init() {
-      var isReady = false;
-      try { isReady = localStorage.getItem("smart_stock_gps_ready") === "1"; } catch (e) {}
-      var forceGo = window.location.search.indexOf("go=1") > -1;
-
-
-      if (isReady || forceGo) {
-        startGpsAndLaunch();
-      } else {
-        document.getElementById("setupCard").style.display = "block";
-      }
     })();
   </script>
 </body>
 </html>
-
 
