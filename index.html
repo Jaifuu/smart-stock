@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#020617">
+  <title>Smart Stock</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card {
+      width: 100%; max-width: 360px; padding: 28px 22px; border-radius: 24px;
+      background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.35);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); text-align: center;
+    }
+    .spinner {
+      width: 44px; height: 44px; margin: 0 auto 16px;
+      border: 4px solid rgba(56, 189, 248, 0.2); border-top-color: #38bdf8;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 19px; margin: 0 0 8px; color: #38bdf8; }
+    p { font-size: 13px; color: #cbd5e1; line-height: 1.55; margin: 0 0 18px; }
+    .tip {
+      background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fde68a; border-radius: 14px; padding: 12px; font-size: 12px;
+      text-align: left; line-height: 1.55; margin-bottom: 18px;
+    }
+    .btn {
+      width: 100%; padding: 14px; border: none; border-radius: 14px; cursor: pointer;
+      background: linear-gradient(135deg, #10b981, #0ea5e9); color: #020617;
+      font-size: 15px; font-weight: 800; box-shadow: 0 8px 20px rgba(14, 165, 233, 0.35);
+    }
+    .skip {
+      display: inline-block; margin-top: 14px; color: #94a3b8;
+      font-size: 12px; text-decoration: underline; cursor: pointer; background: none; border: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="setupCard" style="display:none;">
+    <h1>🛰️ ทางเข้า Smart Stock (GPS)</h1>
+    <p>ระบบพร้อมจับพิกัดดาวเทียมตรงจุดที่คุณอยู่แบบอัตโนมัติทั้งในไทยและต่างประเทศ</p>
+    <div class="tip">
+      <b>แนะนำ (ทำแค่ครั้งแรก):</b><br>
+      1. แตะปุ่ม <b>⋮</b> มุมขวาบนของ Chrome ➔ เลือก <b>เพิ่มลงในหน้าจอหลัก</b><br>
+      2. เสร็จแล้วกดปุ่มด้านล่าง แล้วกด <b>อนุญาต (Allow)</b> ตำแหน่งที่ตั้ง
+    </div>
+    <button class="btn" onclick="startGpsAndLaunch()">เริ่มจับพิกัด GPS และเข้าแอป</button>
+  </div>
+
+
+  <div class="card" id="loadingCard" style="display:none;">
+    <div class="spinner"></div>
+    <h1 id="statusTitle">กำลังจับพิกัด GPS ดาวเทียม...</h1>
+    <p id="statusSub">กรุณารอสักครู่ ระบบกำลังพาเข้าสู่ Smart Stock</p>
+    <button class="skip" onclick="redirectToApp(null, null)">เข้าแอปทันทีโดยไม่รอ GPS</button>
+  </div>
+
+
+  <script>
+    // ลิงก์ Web App Google Apps Script จริงของคุณ
+    var TARGET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzYpv2kP7xp8OmLZReL1SAIsySweORn023s55e1Mi35MS_MF5h8pma3k0CCzCuQOB44Og/exec";
+    var redirected = false;
+
+
+    function redirectToApp(lat, lon) {
+      if (redirected) return;
+      redirected = true;
+      var params = new URLSearchParams(window.location.search);
+      params.delete("go");
+      if (!params.has("mode")) params.set("mode", "mobile");
+
+
+      var cleanLauncher = window.location.origin + window.location.pathname;
+      params.set("launcher", cleanLauncher);
+
+
+      if (lat !== null && lon !== null) {
+        params.set("lat", Number(lat).toFixed(6));
+        params.set("lon", Number(lon).toFixed(6));
+      }
+      window.location.replace(TARGET_WEB_APP_URL + "?" + params.toString());
+    }
+
+
+    function startGpsAndLaunch() {
+      try { localStorage.setItem("smart_stock_gps_ready", "1"); } catch (e) {}
+      document.getElementById("setupCard").style.display = "none";
+      document.getElementById("loadingCard").style.display = "block";
+
+
+      if (!navigator.geolocation) {
+        redirectToApp(null, null);
+        return;
+      }
+
+
+      var guard = setTimeout(function() {
+        redirectToApp(null, null);
+      }, 6500);
+
+
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          clearTimeout(guard);
+          document.getElementById("statusTitle").textContent = "จับพิกัดสำเร็จ!";
+          redirectToApp(pos.coords.latitude, pos.coords.longitude);
+        },
+        function() {
+          clearTimeout(guard);
+          redirectToApp(null, null);
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+      );
+    }
+
+
+    (function init() {
+      var isReady = false;
+      try { isReady = localStorage.getItem("smart_stock_gps_ready") === "1"; } catch (e) {}
+      var forceGo = window.location.search.indexOf("go=1") > -1;
+
+
+      if (isReady || forceGo) {
+        startGpsAndLaunch();
+      } else {
+        document.getElementById("setupCard").style.display = "block";
+      }
+    })();
+  </script>
+</body>
+</html>
+
+
